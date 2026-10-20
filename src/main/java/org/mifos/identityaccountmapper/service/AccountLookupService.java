@@ -148,7 +148,8 @@ public class AccountLookupService {
             return false;
         }
 
-        return true;
+        // null (e.g. the Mojaloop validator, which answers asynchronously) is not a validation
+        return Boolean.TRUE.equals(accountValidate);
     }
 
     public void sendAccountLookupCallback(String callbackURL, Boolean accountValidate, String payeeIdentity, String requestId,

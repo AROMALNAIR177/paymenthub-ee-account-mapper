@@ -56,6 +56,15 @@ class GSMAAccountValidationTest {
         assertThat(requestedPaths).containsExactly("/ams/accounts/MSISDN/alice/status", "/ams/accounts/MSISDN/bob/status");
     }
 
+    /** PHEE-431: an unused responseMap.get("fieldName").toString() threw on every call before the status was read. */
+    @Test
+    void activeAccountIsValidAndAnyOtherStatusIsNot() {
+        assertThat(validation.validateAccount("acc-1", "greenbank", "MSISDN", "alice", "http://callback")).isTrue();
+
+        responseBody = "{\"accountStatus\":\"savingsAccountStatusType.closed\"}";
+        assertThat(validation.validateAccount("acc-1", "greenbank", "MSISDN", "alice", "http://callback")).isFalse();
+    }
+
     private void validateIgnoringOutcome(String payeeIdentity) {
         try {
             validation.validateAccount("acc-1", "greenbank", "MSISDN", payeeIdentity, "http://callback");
