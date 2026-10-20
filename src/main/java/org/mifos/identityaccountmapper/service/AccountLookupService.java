@@ -69,18 +69,26 @@ public class AccountLookupService {
                         .get(0);
 
                 if (lookupProperties.accountValidationEnabled()) {
-                    AccountValidationService accountValidationService = null;
+                    // handled as in accountlookupHelper (the single lookup): a missing validator bean, a validator
+                    // that throws, or one that answers null all mean "not validated" for this beneficiary only
+                    AccountValidationService accountValidationService;
                     try {
                         accountValidationService = (AccountValidationService) this.applicationContext
                                 .getBean(lookupProperties.accountValidatorConnector());
                     } catch (NoSuchBeanDefinitionException ex) {
-                        // Handle the case when the bean is not found in the application context
+                        logger.error("AccountValidationService bean not found: {}", lookupProperties.accountValidatorConnector(), ex);
+                        return;
                     }
-                    assert accountValidationService != null;
-                    Boolean accountValidate = accountValidationService.validateAccount(paymentModalityDetails.getDestinationAccount(),
-                            paymentModalityDetails.getInstitutionCode(), fetchPaymentModality(paymentModalityDetails.getModality()),
-                            beneficiary.getPayeeIdentity(), callbackURL);
-                    if (!accountValidate) {
+                    Boolean accountValidate;
+                    try {
+                        accountValidate = accountValidationService.validateAccount(paymentModalityDetails.getDestinationAccount(),
+                                paymentModalityDetails.getInstitutionCode(), fetchPaymentModality(paymentModalityDetails.getModality()),
+                                beneficiary.getPayeeIdentity(), callbackURL);
+                    } catch (Exception ex) {
+                        logger.error("Error during account validation for {}", beneficiary.getPayeeIdentity(), ex);
+                        return;
+                    }
+                    if (!Boolean.TRUE.equals(accountValidate)) {
                         return;
                     }
                 }
