@@ -31,7 +31,10 @@ public class FetchBeneficiariesService {
         if (masterRepository.existsByPayeeIdentityAndRegisteringInstitutionId(payeeIdentity, registeringInstitutionId)) {
             identityDetails = masterRepository.findByPayeeIdentityAndRegisteringInstitutionId(payeeIdentity, registeringInstitutionId)
                     .orElseThrow(() -> PayeeIdentityException.payeeIdentityNotFound(payeeIdentity));
-            paymentModalityDetails = paymentModalityRepository.findByMasterId(identityDetails.getMasterId()).get(0);
+            // as in fetchAllBeneficiaries: an identity without a payment modality is returned with empty modality
+            // fields
+            paymentModalityDetails = paymentModalityRepository.findByMasterId(identityDetails.getMasterId()).stream().findFirst()
+                    .orElse(paymentModalityDetails);
         }
         return new FetchBeneficiariesResponseDTO(registeringInstitutionId, payeeIdentity, paymentModalityDetails.getModality(),
                 paymentModalityDetails.getDestinationAccount(), paymentModalityDetails.getInstitutionCode());

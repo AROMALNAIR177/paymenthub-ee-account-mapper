@@ -65,8 +65,12 @@ public class AccountLookupService {
                 IdentityDetails identityDetails = masterRepository
                         .findByPayeeIdentityAndRegisteringInstitutionId(beneficiary.getPayeeIdentity(), registeringInstitutionId)
                         .orElseThrow(() -> PayeeIdentityException.payeeIdentityNotFound(beneficiary.getPayeeIdentity()));
-                PaymentModalityDetails paymentModalityDetails = paymentModalityRepository.findByMasterId(identityDetails.getMasterId())
-                        .get(0);
+                List<PaymentModalityDetails> paymentModalities = paymentModalityRepository.findByMasterId(identityDetails.getMasterId());
+                if (paymentModalities.isEmpty()) {
+                    logger.warn("No payment modality registered for {}, leaving it out of the lookup", beneficiary.getPayeeIdentity());
+                    return;
+                }
+                PaymentModalityDetails paymentModalityDetails = paymentModalities.get(0);
 
                 if (lookupProperties.accountValidationEnabled()) {
                     // handled as in accountlookupHelper (the single lookup): a missing validator bean, a validator
@@ -124,7 +128,12 @@ public class AccountLookupService {
 
     public boolean accountlookupHelper(String callbackURL, String payeeIdentity, String paymentModality, IdentityDetails identityDetails) {
 
-        PaymentModalityDetails paymentModalityDetails = paymentModalityRepository.findByMasterId(identityDetails.getMasterId()).get(0);
+        List<PaymentModalityDetails> paymentModalities = paymentModalityRepository.findByMasterId(identityDetails.getMasterId());
+        if (paymentModalities.isEmpty()) {
+            logger.warn("No payment modality registered for {}", payeeIdentity);
+            return false;
+        }
+        PaymentModalityDetails paymentModalityDetails = paymentModalities.get(0);
 
         if (!paymentModalityCodes.contains(paymentModality)) {
             paymentModality = getValueByKey(paymentModality);

@@ -152,15 +152,13 @@ public class AddUpdatePaymentModalityService {
     }
 
     private PaymentModalityDetails fetchPaymentModalityDetails(BeneficiaryDTO beneficiary, String registeringInstitutionId) {
-        IdentityDetails identityDetails = null;
-        try {
-            identityDetails = masterRepository
-                    .findByPayeeIdentityAndRegisteringInstitutionId(beneficiary.getPayeeIdentity(), registeringInstitutionId)
-                    .orElseThrow(() -> PayeeIdentityException.payeeIdentityNotFound(beneficiary.getPayeeIdentity()));
-        } catch (PayeeIdentityException e) {
-            logger.error(e.getMessage());
-        }
-        return paymentModalityRepository.findByMasterId(identityDetails.getMasterId()).get(0);
+        // the callers record any exception as this beneficiary's error; catching PayeeIdentityException here and
+        // carrying on dereferenced the null identity instead
+        IdentityDetails identityDetails = masterRepository
+                .findByPayeeIdentityAndRegisteringInstitutionId(beneficiary.getPayeeIdentity(), registeringInstitutionId)
+                .orElseThrow(() -> PayeeIdentityException.payeeIdentityNotFound(beneficiary.getPayeeIdentity()));
+        return paymentModalityRepository.findByMasterId(identityDetails.getMasterId()).stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException("No payment modality registered for " + beneficiary.getPayeeIdentity()));
     }
 
     @Transactional
