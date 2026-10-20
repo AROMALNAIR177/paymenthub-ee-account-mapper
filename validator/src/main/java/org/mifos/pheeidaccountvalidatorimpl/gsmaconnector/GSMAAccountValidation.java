@@ -38,11 +38,11 @@ public class GSMAAccountValidation extends AccountValidationService {
     @Override
     public Boolean validateAccount(String financialAddress, String tenant, String paymentModality, String payeeIdentity,
             String callbackURL) {
-        accountStatusEndpoint = accountStatusEndpoint.replaceAll("identifierType", paymentModality);
-        // accountStatusEndpoint = accountStatusEndpoint.replaceAll("identifierId", financialAddress);
-        accountStatusEndpoint = accountStatusEndpoint.replaceAll("identifierId", payeeIdentity);
+        // Fill a local copy: writing the result back into the singleton's template removed the placeholders after the
+        // first call, so every later lookup queried the first identity's account.
+        String endpoint = accountStatusEndpoint.replace("identifierType", paymentModality).replace("identifierId", payeeIdentity);
 
-        ResponseEntity<String> response = restClient.get().uri(URI.create(gsmaConnectorContactPoint + accountStatusEndpoint))
+        ResponseEntity<String> response = restClient.get().uri(URI.create(gsmaConnectorContactPoint + endpoint))
                 .header("Platform-TenantId", tenant).retrieve()
                 .onStatus(status -> true, GSMAAccountValidation::keepTheResponse).toEntity(String.class);
 
