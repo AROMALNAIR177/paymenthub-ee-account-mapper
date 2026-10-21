@@ -65,22 +65,34 @@ public class AccountLookupService {
                 IdentityDetails identityDetails = masterRepository
                         .findByPayeeIdentityAndRegisteringInstitutionId(beneficiary.getPayeeIdentity(), registeringInstitutionId)
                         .orElseThrow(() -> PayeeIdentityException.payeeIdentityNotFound(beneficiary.getPayeeIdentity()));
-                PaymentModalityDetails paymentModalityDetails = paymentModalityRepository.findByMasterId(identityDetails.getMasterId())
-                        .get(0);
+                List<PaymentModalityDetails> paymentModalities = paymentModalityRepository.findByMasterId(identityDetails.getMasterId());
+                if (paymentModalities.isEmpty()) {
+                    logger.warn("No payment modality registered for {}, leaving it out of the lookup", beneficiary.getPayeeIdentity());
+                    return;
+                }
+                PaymentModalityDetails paymentModalityDetails = paymentModalities.get(0);
 
                 if (lookupProperties.accountValidationEnabled()) {
-                    AccountValidationService accountValidationService = null;
+                    // handled as in accountlookupHelper (the single lookup): a missing validator bean, a validator
+                    // that throws, or one that answers null all mean "not validated" for this beneficiary only
+                    AccountValidationService accountValidationService;
                     try {
                         accountValidationService = (AccountValidationService) this.applicationContext
                                 .getBean(lookupProperties.accountValidatorConnector());
                     } catch (NoSuchBeanDefinitionException ex) {
-                        // Handle the case when the bean is not found in the application context
+                        logger.error("AccountValidationService bean not found: {}", lookupProperties.accountValidatorConnector(), ex);
+                        return;
                     }
-                    assert accountValidationService != null;
-                    Boolean accountValidate = accountValidationService.validateAccount(paymentModalityDetails.getDestinationAccount(),
-                            paymentModalityDetails.getInstitutionCode(), fetchPaymentModality(paymentModalityDetails.getModality()),
-                            beneficiary.getPayeeIdentity(), callbackURL);
-                    if (!accountValidate) {
+                    Boolean accountValidate;
+                    try {
+                        accountValidate = accountValidationService.validateAccount(paymentModalityDetails.getDestinationAccount(),
+                                paymentModalityDetails.getInstitutionCode(), fetchPaymentModality(paymentModalityDetails.getModality()),
+                                beneficiary.getPayeeIdentity(), callbackURL);
+                    } catch (Exception ex) {
+                        logger.error("Error during account validation for {}", beneficiary.getPayeeIdentity(), ex);
+                        return;
+                    }
+                    if (!Boolean.TRUE.equals(accountValidate)) {
                         return;
                     }
                 }
@@ -116,7 +128,12 @@ public class AccountLookupService {
 
     public boolean accountlookupHelper(String callbackURL, String payeeIdentity, String paymentModality, IdentityDetails identityDetails) {
 
-        PaymentModalityDetails paymentModalityDetails = paymentModalityRepository.findByMasterId(identityDetails.getMasterId()).get(0);
+        List<PaymentModalityDetails> paymentModalities = paymentModalityRepository.findByMasterId(identityDetails.getMasterId());
+        if (paymentModalities.isEmpty()) {
+            logger.warn("No payment modality registered for {}", payeeIdentity);
+            return false;
+        }
+        PaymentModalityDetails paymentModalityDetails = paymentModalities.get(0);
 
         if (!paymentModalityCodes.contains(paymentModality)) {
             paymentModality = getValueByKey(paymentModality);
@@ -140,7 +157,8 @@ public class AccountLookupService {
             return false;
         }
 
-        return true;
+        // null (e.g. the Mojaloop validator, which answers asynchronously) is not a validation
+        return Boolean.TRUE.equals(accountValidate);
     }
 
     public void sendAccountLookupCallback(String callbackURL, Boolean accountValidate, String payeeIdentity, String requestId,

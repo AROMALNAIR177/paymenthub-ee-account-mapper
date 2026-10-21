@@ -113,7 +113,7 @@ public class RegisterBeneficiaryService {
                             beneficiary.getPaymentModality(), "Payee Identity Invalid");
                     errorTrackingList.add(errorTracking);
                     beneficiaryExists = true;
-                } else if (!beneficiaryValidator.validatePayeeIdentity(beneficiary.getPayeeIdentity())) {
+                } else if (!beneficiaryValidator.validatePaymentModality(beneficiary.getPaymentModality())) {
                     ErrorTracking errorTracking = new ErrorTracking(requestID, beneficiary.getPayeeIdentity(),
                             beneficiary.getPaymentModality(), "Payee Modality Invalid");
                     errorTrackingList.add(errorTracking);

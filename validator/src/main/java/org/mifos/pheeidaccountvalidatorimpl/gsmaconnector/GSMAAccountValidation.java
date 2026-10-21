@@ -38,37 +38,25 @@ public class GSMAAccountValidation extends AccountValidationService {
     @Override
     public Boolean validateAccount(String financialAddress, String tenant, String paymentModality, String payeeIdentity,
             String callbackURL) {
-        accountStatusEndpoint = accountStatusEndpoint.replaceAll("identifierType", paymentModality);
-        // accountStatusEndpoint = accountStatusEndpoint.replaceAll("identifierId", financialAddress);
-        accountStatusEndpoint = accountStatusEndpoint.replaceAll("identifierId", payeeIdentity);
+        // Fill a local copy: writing the result back into the singleton's template removed the placeholders after the
+        // first call, so every later lookup queried the first identity's account.
+        String endpoint = accountStatusEndpoint.replace("identifierType", paymentModality).replace("identifierId", payeeIdentity);
 
-        ResponseEntity<String> response = restClient.get().uri(URI.create(gsmaConnectorContactPoint + accountStatusEndpoint))
+        ResponseEntity<String> response = restClient.get().uri(URI.create(gsmaConnectorContactPoint + endpoint))
                 .header("Platform-TenantId", tenant).retrieve()
                 .onStatus(status -> true, GSMAAccountValidation::keepTheResponse).toEntity(String.class);
 
-        Integer statusCode = response.getStatusCode().value();
-        String responseBody = response.getBody();
-        Map<String, String> responseMap = null;
+        if (response.getStatusCode().value() != 200) {
+            return false;
+        }
+        Map<String, Object> responseMap;
         try {
-            responseMap = objectMapper.readValue(responseBody, Map.class);
+            responseMap = objectMapper.readValue(response.getBody(), Map.class);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
-
-        // Left exactly as it was, on purpose. fieldValue is never used, but the AMS
-        // account-status response has no "fieldName" field, so this line throws a
-        // NullPointerException on every call and the account validation below is
-        // never reached. Removing it looks like dead-code cleanup and is not: it
-        // turns the validation back on, and the caller then reports every account
-        // as validated (AccountLookupService.accountlookupHelper returns true
-        // whatever the validator answered). Both are reported separately.
-        String fieldValue = responseMap.get("fieldName").toString();
-        if (!statusCode.equals(200)) {
-            return false;
-        } else if (statusCode.equals(200) && responseMap.get("accountStatus").equals("savingsAccountStatusType.active")) {
-            return true;
-        } else {
-            return false;
-        }
+        // The unused `responseMap.get("fieldName").toString()` that stood here threw a NullPointerException on every
+        // call (the AMS account-status response has no such field), so this check was never reached.
+        return "savingsAccountStatusType.active".equals(responseMap.get("accountStatus"));
     }
 }
